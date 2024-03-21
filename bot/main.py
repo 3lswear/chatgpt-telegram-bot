@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 from plugin_manager import PluginManager
 from openai_helper import OpenAIHelper, default_max_tokens, are_functions_available
+from anthropic_helper import AnthropicHelper, default_max_tokens, are_functions_available
 from telegram_bot import ChatGPTTelegramBot
 
 
@@ -27,11 +28,23 @@ def main():
         exit(1)
 
     # Setup configurations
-    model = os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo')
+    model_family = os.environ.get('MODEL_FAMILY', 'openai')
+    if model_family == 'openai':
+        model = os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo')
+    elif model_family == 'anthropic':
+        model = os.environ.get('ANTHROPIC_MODEL', 'claude-3-haiku-20240307')
+    else:
+        required_values = ['MODEL_FAMILY']
+        missing_values = [value for value in required_values if os.environ.get(value) is None]
+        logging.error(f'The following environment values are missing in your .env: {", ".join(missing_values)}')
+        exit(1)
+
     functions_available = are_functions_available(model=model)
     max_tokens_default = default_max_tokens(model=model)
     openai_config = {
+        'model_family': model_family,
         'api_key': os.environ['OPENAI_API_KEY'],
+        'anthropic_api_key': os.environ['ANTHROPIC_API_KEY'],
         'show_usage': os.environ.get('SHOW_USAGE', 'false').lower() == 'true',
         'stream': os.environ.get('STREAM', 'true').lower() == 'true',
         'proxy': os.environ.get('PROXY', None) or os.environ.get('OPENAI_PROXY', None),
@@ -108,8 +121,9 @@ def main():
 
     # Setup and run ChatGPT and Telegram bot
     plugin_manager = PluginManager(config=plugin_config)
-    openai_helper = OpenAIHelper(config=openai_config, plugin_manager=plugin_manager)
-    telegram_bot = ChatGPTTelegramBot(config=telegram_config, openai=openai_helper)
+    # openai_helper = OpenAIHelper(config=openai_config, plugin_manager=plugin_manager)
+    helper = AnthropicHelper(config=openai_config, plugin_manager=plugin_manager) if model_family == 'anthropic' else OpenAIHelper(config=openai_config, plugin_manager=plugin_manager)
+    telegram_bot = ChatGPTTelegramBot(config=telegram_config, openai=helper)
     telegram_bot.run()
 
 

@@ -21,6 +21,7 @@ from utils import is_group_chat, get_thread_id, message_text, wrap_with_indicato
     get_reply_to_message_id, add_chat_request_to_usage_tracker, error_handler, is_direct_result, handle_direct_result, \
     cleanup_intermediate_files
 from openai_helper import OpenAIHelper, localized_text
+from anthropic_helper import AnthropicHelper, localized_text
 from usage_tracker import UsageTracker
 
 
@@ -29,7 +30,7 @@ class ChatGPTTelegramBot:
     Class representing a ChatGPT Telegram Bot.
     """
 
-    def __init__(self, config: dict, openai: OpenAIHelper):
+    def __init__(self, config: dict, openai: OpenAIHelper | AnthropicHelper):
         """
         Initializes the bot with the given configuration and GPT bot object.
         :param config: A dictionary containing the bot configuration
