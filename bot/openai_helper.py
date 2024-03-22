@@ -257,6 +257,7 @@ class OpenAIHelper:
                 'stream': stream
             }
 
+            logging.info(f'Messages are: {self.conversations[chat_id]}')
             if self.config['enable_functions'] and not self.conversations_vision[chat_id]:
                 functions = self.plugin_manager.get_functions_specs()
                 if len(functions) > 0:
