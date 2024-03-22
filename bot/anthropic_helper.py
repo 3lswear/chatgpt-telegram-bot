@@ -113,17 +113,17 @@ class AnthropicHelper:
 
         answer = ''
 
-        if len(response.choices) > 1 and self.config['n_choices'] > 1:
-            for index, choice in enumerate(response.choices):
-                content = choice.message.content.strip()
-                if index == 0:
-                    self.__add_to_history(chat_id, role="assistant", content=content)
-                answer += f'{index + 1}\u20e3\n'
-                answer += content
-                answer += '\n\n'
-        else:
-            answer = response.choices[0].message.content.strip()
-            self.__add_to_history(chat_id, role="assistant", content=answer)
+        # if len(response.choices) > 1 and self.config['n_choices'] > 1:
+        #     for index, choice in enumerate(response.choices):
+        #         content = choice.message.content.strip()
+        #         if index == 0:
+        #             self.__add_to_history(chat_id, role="assistant", content=content)
+        #         answer += f'{index + 1}\u20e3\n'
+        #         answer += content
+        #         answer += '\n\n'
+        # else:
+        answer = response.content.strip()
+        self.__add_to_history(chat_id, role="assistant", content=answer)
 
         bot_language = self.config['bot_language']
         show_plugins_used = len(plugins_used) > 0 and self.config['show_plugins_used']
@@ -157,12 +157,11 @@ class AnthropicHelper:
 
         answer = ''
         async for chunk in response:
-            if len(chunk.choices) == 0:
-                continue
-            delta = chunk.choices[0].delta
-            if delta.content:
-                answer += delta.content
-                yield answer, 'not_finished'
+            if chunk.type == 'content_block_delta':
+                delta = chunk.delta
+                if delta.text:
+                    answer += delta.text
+                    yield answer, 'not_finished'
         answer = answer.strip()
         self.__add_to_history(chat_id, role="assistant", content=answer)
         tokens_used = str(self.__count_tokens(self.conversations[chat_id]))
@@ -198,6 +197,8 @@ class AnthropicHelper:
 
             self.last_updated[chat_id] = datetime.datetime.now()
 
+            if query == "":
+                query = "Hi"
             self.__add_to_history(chat_id, role="user", content=query)
 
             # Summarize the chat history if it's too long to avoid excessive token usage
@@ -228,6 +229,7 @@ class AnthropicHelper:
                 'stream': stream
             }
 
+            logging.info(f'Messages are: {self.conversations[chat_id]}')
             if self.config['enable_functions'] and not self.conversations_vision[chat_id]:
                 functions = self.plugin_manager.get_functions_specs()
                 if len(functions) > 0:
@@ -239,6 +241,7 @@ class AnthropicHelper:
             raise e
 
         except anthropic.BadRequestError as e:
+            logging.error(f'Messages are: {self.conversations[chat_id]}')
             raise Exception(f"⚠️ _{localized_text('openai_invalid', bot_language)}._ ⚠️\n{str(e)}") from e
 
         except Exception as e:
@@ -513,7 +516,7 @@ class AnthropicHelper:
             messages=messages,
             temperature=0.4
         )
-        return response.choices[0].message.content
+        return response.content
 
     def __max_model_tokens(self):
         return 200000
