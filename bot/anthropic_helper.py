@@ -32,7 +32,9 @@ def default_max_tokens(model: str) -> int:
     :param model: The model name
     :return: The default number of max tokens
     """
-    return 200000
+    # base = 1200
+    # base is 4k tokens based on my calculations ??
+    return 4096 # per models overview
 
 
 def are_functions_available(model: str) -> bool:
@@ -178,7 +180,7 @@ class AnthropicHelper:
 
     @retry(
         reraise=True,
-        retry=retry_if_exception_type(openai.RateLimitError),
+        retry=retry_if_exception_type(anthropic.RateLimitError),
         wait=wait_fixed(20),
         stop=stop_after_attempt(3)
     )
@@ -218,11 +220,11 @@ class AnthropicHelper:
             common_args = {
                 'model': self.config['model'] if not self.conversations_vision[chat_id] else self.config['vision_model'],
                 'messages': self.conversations[chat_id],
+                'system': self.config['assistant_prompt'],
                 'temperature': self.config['temperature'],
-                'n': self.config['n_choices'],
                 'max_tokens': self.config['max_tokens'],
-                'presence_penalty': self.config['presence_penalty'],
-                'frequency_penalty': self.config['frequency_penalty'],
+                # 'presence_penalty': self.config['presence_penalty'],
+                # 'frequency_penalty': self.config['frequency_penalty'],
                 'stream': stream
             }
 
@@ -465,7 +467,7 @@ class AnthropicHelper:
         """
         if content == '':
             content = self.config['assistant_prompt']
-        self.conversations[chat_id] = [{"role": "system", "content": content}]
+        self.conversations[chat_id] = []
         self.conversations_vision[chat_id] = False
 
     def __max_age_reached(self, chat_id) -> bool:
@@ -526,7 +528,8 @@ class AnthropicHelper:
         :param messages: the messages to send
         :return: the number of tokens required
         """
-        model = self.config['model']
+        # model = self.config['model']
+        model = 'gpt-3.5-turbo'
         try:
             encoding = tiktoken.encoding_for_model(model)
         except KeyError:

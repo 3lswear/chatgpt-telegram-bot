@@ -4,8 +4,10 @@ import os
 from dotenv import load_dotenv
 
 from plugin_manager import PluginManager
-from openai_helper import OpenAIHelper, default_max_tokens, are_functions_available
-from anthropic_helper import AnthropicHelper, default_max_tokens, are_functions_available
+from openai_helper import OpenAIHelper
+from anthropic_helper import AnthropicHelper
+import openai_helper
+import anthropic_helper
 from telegram_bot import ChatGPTTelegramBot
 
 
@@ -31,16 +33,18 @@ def main():
     model_family = os.environ.get('MODEL_FAMILY', 'openai')
     if model_family == 'openai':
         model = os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo')
+        functions_available = openai_helper.are_functions_available(model=model)
+        max_tokens_default = openai_helper.default_max_tokens(model=model)
     elif model_family == 'anthropic':
         model = os.environ.get('ANTHROPIC_MODEL', 'claude-3-haiku-20240307')
+        functions_available = anthropic_helper.are_functions_available(model=model)
+        max_tokens_default = anthropic_helper.default_max_tokens(model=model)
     else:
         required_values = ['MODEL_FAMILY']
         missing_values = [value for value in required_values if os.environ.get(value) is None]
         logging.error(f'The following environment values are missing in your .env: {", ".join(missing_values)}')
         exit(1)
 
-    functions_available = are_functions_available(model=model)
-    max_tokens_default = default_max_tokens(model=model)
     openai_config = {
         'model_family': model_family,
         'api_key': os.environ['OPENAI_API_KEY'],
@@ -50,6 +54,7 @@ def main():
         'proxy': os.environ.get('PROXY', None) or os.environ.get('OPENAI_PROXY', None),
         'max_history_size': int(os.environ.get('MAX_HISTORY_SIZE', 15)),
         'max_conversation_age_minutes': int(os.environ.get('MAX_CONVERSATION_AGE_MINUTES', 180)),
+        # 'assistant_prompt': os.environ.get('ASSISTANT_PROMPT', 'You are a helpful assistant.'),
         'assistant_prompt': os.environ.get('ASSISTANT_PROMPT', 'You are a helpful assistant.'),
         'max_tokens': int(os.environ.get('MAX_TOKENS', max_tokens_default)),
         'n_choices': int(os.environ.get('N_CHOICES', 1)),

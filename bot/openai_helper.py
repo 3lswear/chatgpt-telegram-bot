@@ -6,7 +6,6 @@ import os
 import tiktoken
 
 import openai
-import anthropic
 
 import requests
 import json
@@ -23,7 +22,6 @@ from plugin_manager import PluginManager
 
 # Models can be found here: https://platform.openai.com/docs/models/overview
 # Models gpt-3.5-turbo-0613 and  gpt-3.5-turbo-16k-0613 will be deprecated on June 13, 2024
-ANTHROPIC_MODELS = ('claude-3-haiku-20240307')
 GPT_3_MODELS = ("gpt-3.5-turbo", "gpt-3.5-turbo-0301", "gpt-3.5-turbo-0613")
 GPT_3_16K_MODELS = ("gpt-3.5-turbo-16k", "gpt-3.5-turbo-16k-0613", "gpt-3.5-turbo-1106", "gpt-3.5-turbo-0125")
 GPT_4_MODELS = ("gpt-4", "gpt-4-0314", "gpt-4-0613")
@@ -54,8 +52,6 @@ def default_max_tokens(model: str) -> int:
         return 4096
     elif model in GPT_4_128K_MODELS:
         return 4096
-    elif model in ANTHROPIC_MODELS:
-        return 200000
 
 
 def are_functions_available(model: str) -> bool:
@@ -116,9 +112,9 @@ class OpenAIHelper:
         self.client = openai.AsyncOpenAI(api_key=config['api_key'], http_client=http_client)
         self.config = config
         self.plugin_manager = plugin_manager
-        self.conversations: dict[int, list] = {}  # {chat_id: history}
-        self.conversations_vision: dict[int, bool] = {}  # {chat_id: is_vision}
-        self.last_updated: dict[int, datetime.datetime] = {}  # {chat_id: last_update_timestamp}
+        self.conversations: dict[int: list] = {}  # {chat_id: history}
+        self.conversations_vision: dict[int: bool] = {}  # {chat_id: is_vision}
+        self.last_updated: dict[int: datetime] = {}  # {chat_id: last_update_timestamp}
 
     def get_conversation_stats(self, chat_id: int) -> tuple[int, int]:
         """
