@@ -668,6 +668,7 @@ class ChatGPTTelegramBot:
                 if prompt.lower().startswith(trigger_keyword.lower()):
                     prompt = prompt[len(trigger_keyword):].strip()
 
+                #reply logic here
                 if update.message.reply_to_message and \
                         update.message.reply_to_message.text and \
                         update.message.reply_to_message.from_user.id != context.bot.id:
@@ -819,6 +820,7 @@ class ChatGPTTelegramBot:
         if not await self.check_allowed_and_within_budget(update, context, is_inline=True):
             return
 
+        logging.debug(f'update in inline_query is {update}')
         callback_data_suffix = "gpt:"
         result_id = str(uuid4())
         self.inline_queries_cache[result_id] = query
@@ -849,6 +851,7 @@ class ChatGPTTelegramBot:
                 reply_markup=reply_markup
             )
 
+            logging.debug(f'update in send_inline_query_result is {update}')
             await update.inline_query.answer([inline_query_result], cache_time=0)
         except Exception as e:
             logging.error(f'An error occurred while generating the result card for inline query {e}')
@@ -873,6 +876,8 @@ class ChatGPTTelegramBot:
                 total_tokens = 0
 
                 # Retrieve the prompt from the cache
+                # TODO: include message that is replied to here??
+                logging.debug(f'update in handle_callback_inline_query is {update}')
                 query = self.inline_queries_cache.get(unique_id)
                 if query:
                     self.inline_queries_cache.pop(unique_id)
