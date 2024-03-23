@@ -752,6 +752,7 @@ class ChatGPTTelegramBot:
                             continue
 
                         except TimedOut:
+                            logging.info("timed out in prompt, stream=True")
                             backoff += 5
                             await asyncio.sleep(0.5)
                             continue
@@ -939,6 +940,7 @@ class ChatGPTTelegramBot:
                                 await asyncio.sleep(e.retry_after)
                                 continue
                             except TimedOut:
+                                logging.info("timed out in handle_callback_inline_query")
                                 backoff += 5
                                 await asyncio.sleep(0.5)
                                 continue
