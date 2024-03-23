@@ -847,8 +847,7 @@ class ChatGPTTelegramBot:
                 title=localized_text("ask_chatgpt", bot_language),
                 input_message_content=InputTextMessageContent(message_content),
                 description=message_content,
-                thumb_url='https://user-images.githubusercontent.com/11541888/223106202-7576ff11-2c8e-408d-94ea'
-                          '-b02a7a32149a.png',
+                thumb_url='https://github.com/3lswear/chatgpt-telegram-bot/assets/13720771/70b0b38f-1d6d-4aa6-970c-548119b7a043',
                 reply_markup=reply_markup
             )
 
