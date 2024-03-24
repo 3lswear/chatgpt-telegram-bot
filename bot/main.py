@@ -17,7 +17,7 @@ def main():
 
     # Setup logging
     logging.basicConfig(
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        format='[%(filename)s:%(lineno)s - %(funcName)20s() ]%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         level=logging.INFO
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
