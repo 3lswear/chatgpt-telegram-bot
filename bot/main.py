@@ -35,10 +35,12 @@ def main():
         model = os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo')
         functions_available = openai_helper.are_functions_available(model=model)
         max_tokens_default = openai_helper.default_max_tokens(model=model)
+        vision_model = os.environ.get('VISION_MODEL', 'gpt-4-vision-preview')
     elif model_family == 'anthropic':
         model = os.environ.get('ANTHROPIC_MODEL', 'claude-3-haiku-20240307')
         functions_available = anthropic_helper.are_functions_available(model=model)
         max_tokens_default = anthropic_helper.default_max_tokens(model=model)
+        vision_model = os.environ.get('VISION_MODEL', model)
     else:
         required_values = ['MODEL_FAMILY']
         missing_values = [value for value in required_values if os.environ.get(value) is None]
@@ -71,7 +73,7 @@ def main():
         'bot_language': os.environ.get('BOT_LANGUAGE', 'en'),
         'show_plugins_used': os.environ.get('SHOW_PLUGINS_USED', 'false').lower() == 'true',
         'whisper_prompt': os.environ.get('WHISPER_PROMPT', ''),
-        'vision_model': os.environ.get('VISION_MODEL', 'gpt-4-vision-preview'),
+        'vision_model': vision_model,
         'enable_vision_follow_up_questions': os.environ.get('ENABLE_VISION_FOLLOW_UP_QUESTIONS', 'true').lower() == 'true',
         'vision_prompt': os.environ.get('VISION_PROMPT', 'What is in this image'),
         'vision_detail': os.environ.get('VISION_DETAIL', 'auto'),
