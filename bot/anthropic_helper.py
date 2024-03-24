@@ -18,7 +18,7 @@ from PIL import Image
 
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
-from utils import is_direct_result, encode_image, decode_image
+from utils import is_direct_result, encode_image_anthropic, decode_image
 from plugin_manager import PluginManager
 
 # Models can be found here: https://platform.openai.com/docs/models/overview
@@ -106,10 +106,6 @@ class AnthropicHelper:
         """
         plugins_used = ()
         response = await self.__common_get_chat_response(chat_id, query)
-        if self.config['enable_functions'] and not self.conversations_vision[chat_id]:
-            response, plugins_used = await self.__handle_function_call(chat_id, response)
-            if is_direct_result(response):
-                return response, '0'
 
         answer = ''
 
@@ -378,76 +374,85 @@ class AnthropicHelper:
         :param query: The query to send to the model
         :return: The answer from the model and the number of tokens used
         """
-        logging.warning(f'Cannot transcribe with model: {self.config["model"]}')
+        # logging.warning(f'Cannot transcribe with model: {self.config["model"]}')
 
-        # bot_language = self.config['bot_language']
-        # try:
-        #     if chat_id not in self.conversations or self.__max_age_reached(chat_id):
-        #         self.reset_chat_history(chat_id)
-        #
-        #     self.last_updated[chat_id] = datetime.datetime.now()
-        #
-        #     if self.config['enable_vision_follow_up_questions']:
-        #         self.conversations_vision[chat_id] = True
-        #         self.__add_to_history(chat_id, role="user", content=content)
-        #     else:
-        #         for message in content:
-        #             if message['type'] == 'text':
-        #                 query = message['text']
-        #                 break
-        #         self.__add_to_history(chat_id, role="user", content=query)
-        #
-        #     # Summarize the chat history if it's too long to avoid excessive token usage
-        #     token_count = self.__count_tokens(self.conversations[chat_id])
-        #     exceeded_max_tokens = token_count + self.config['max_tokens'] > self.__max_model_tokens()
-        #     exceeded_max_history_size = len(self.conversations[chat_id]) > self.config['max_history_size']
-        #
-        #     if exceeded_max_tokens or exceeded_max_history_size:
-        #         logging.info(f'Chat history for chat ID {chat_id} is too long. Summarising...')
-        #         try:
-        #             
-        #             last = self.conversations[chat_id][-1]
-        #             summary = await self.__summarise(self.conversations[chat_id][:-1])
-        #             logging.debug(f'Summary: {summary}')
-        #             self.reset_chat_history(chat_id, self.conversations[chat_id][0]['content'])
-        #             self.__add_to_history(chat_id, role="assistant", content=summary)
-        #             self.conversations[chat_id] += [last]
-        #         except Exception as e:
-        #             logging.warning(f'Error while summarising chat history: {str(e)}. Popping elements instead...')
-        #             self.conversations[chat_id] = self.conversations[chat_id][-self.config['max_history_size']:]
-        #
-        #     message = {'role':'user', 'content':content}
-        #
-        #     common_args = {
-        #         'model': self.config['vision_model'],
-        #         'messages': self.conversations[chat_id][:-1] + [message],
-        #         'temperature': self.config['temperature'],
-        #         'n': 1, # several choices is not implemented yet
-        #         'max_tokens': self.config['vision_max_tokens'],
-        #         'presence_penalty': self.config['presence_penalty'],
-        #         'frequency_penalty': self.config['frequency_penalty'],
-        #         'stream': stream
-        #     }
-        #
-        #
-        #     # vision model does not yet support functions
-        #
-        #     # if self.config['enable_functions']:
-        #     #     functions = self.plugin_manager.get_functions_specs()
-        #     #     if len(functions) > 0:
-        #     #         common_args['functions'] = self.plugin_manager.get_functions_specs()
-        #     #         common_args['function_call'] = 'auto'
-        #     
-        #     return await self.client.chat.completions.create(**common_args)
+        bot_language = self.config['bot_language']
+        try:
+            if chat_id not in self.conversations or self.__max_age_reached(chat_id):
+                self.reset_chat_history(chat_id)
+            logging.warning('HERE!!')
 
-        # except openai.RateLimitError as e:
-        #     raise e
-        #
-        # except openai.BadRequestError as e:
-        #     raise Exception(f"⚠️ _{localized_text('openai_invalid', bot_language)}._ ⚠️\n{str(e)}") from e
-        #
-        # except Exception as e:
-        #     raise Exception(f"⚠️ _{localized_text('error', bot_language)}._ ⚠️\n{str(e)}") from e
+            self.last_updated[chat_id] = datetime.datetime.now()
+
+            if self.config['enable_vision_follow_up_questions']:
+                self.conversations_vision[chat_id] = True
+                self.__add_to_history(chat_id, role="user", content=content)
+                logging.warning('HERE!!')
+            else:
+                logging.warning('HERE!!')
+                for message in content:
+                    if message['type'] == 'text':
+                        query = message['text']
+                        break
+                self.__add_to_history(chat_id, role="user", content=query)
+                logging.warning('HERE!!')
+
+            # Summarize the chat history if it's too long to avoid excessive token usage
+            token_count = self.__count_tokens(self.conversations[chat_id])
+            logging.warning('HERE!!')
+            exceeded_max_tokens = token_count + self.config['max_tokens'] > self.__max_model_tokens()
+            logging.warning('HERE!!')
+            exceeded_max_history_size = len(self.conversations[chat_id]) > self.config['max_history_size']
+            logging.warning('HERE!!')
+
+            if exceeded_max_tokens or exceeded_max_history_size:
+                logging.info(f'Chat history for chat ID {chat_id} is too long. Summarising...')
+                try:
+
+                    last = self.conversations[chat_id][-1]
+                    summary = await self.__summarise(self.conversations[chat_id][:-1])
+                    logging.debug(f'Summary: {summary}')
+                    self.reset_chat_history(chat_id, self.conversations[chat_id][0]['content'])
+                    self.__add_to_history(chat_id, role="assistant", content=summary)
+                    self.conversations[chat_id] += [last]
+                except Exception as e:
+                    logging.warning(f'Error while summarising chat history: {str(e)}. Popping elements instead...')
+                    self.conversations[chat_id] = self.conversations[chat_id][-self.config['max_history_size']:]
+
+            message = {'role':'user', 'content':content}
+
+            common_args = {
+                'model': self.config['vision_model'],
+                'messages': self.conversations[chat_id][:-1] + [message],
+                'temperature': self.config['temperature'],
+                # 'n': 1, # several choices is not implemented yet
+                'max_tokens': self.config['vision_max_tokens'],
+                # 'presence_penalty': self.config['presence_penalty'],
+                # 'frequency_penalty': self.config['frequency_penalty'],
+                'stream': stream
+            }
+            # logging.info(f"sending a request with common_args {common_args}")
+
+
+            # vision model does not yet support functions
+
+            # if self.config['enable_functions']:
+            #     functions = self.plugin_manager.get_functions_specs()
+            #     if len(functions) > 0:
+            #         common_args['functions'] = self.plugin_manager.get_functions_specs()
+            #         common_args['function_call'] = 'auto'
+            logging.warning('HERE!!')
+
+            return await self.client.messages.create(**common_args)
+
+        except anthropic.RateLimitError as e:
+            raise e
+
+        except anthropic.BadRequestError as e:
+            raise Exception(f"⚠️ _{localized_text('openai_invalid', bot_language)}._ ⚠️\n{str(e)}") from e
+
+        except Exception as e:
+            raise Exception(f"⚠️ _{localized_text('error', bot_language)}._ ⚠️\n{str(e)}") from e
 
 
     async def interpret_image(self, chat_id, fileobj, prompt=None):
@@ -456,13 +461,106 @@ class AnthropicHelper:
         """
         logging.warning(f'Cannot interpret image with model: {self.config["model"]}')
 
+        image = encode_image_anthropic(fileobj)
+        prompt = self.config['vision_prompt'] if prompt is None else prompt
+
+        content = [
+            {
+                "type": "image_url",
+                "image_url": {"url": image, "detail": self.config["vision_detail"]},
+            },
+            {"type": "text", "text": prompt},
+        ]
+
+        response = await self.__common_get_chat_response_vision(chat_id, content)
+
+        
+
+        # functions are not available for this model
+        
+        # if self.config['enable_functions']:
+        #     response, plugins_used = await self.__handle_function_call(chat_id, response)
+        #     if is_direct_result(response):
+        #         return response, '0'
+
+        answer = ''
+
+        # if len(response.choices) > 1 and self.config['n_choices'] > 1:
+        #     for index, choice in enumerate(response.choices):
+        #         content = choice.message.content.strip()
+        #         if index == 0:
+        #             self.__add_to_history(chat_id, role="assistant", content=content)
+        #         answer += f'{index + 1}\u20e3\n'
+        #         answer += content
+        #         answer += '\n\n'
+        # else:
+        answer = response.content.strip()
+        self.__add_to_history(chat_id, role="assistant", content=answer)
+
+        bot_language = self.config['bot_language']
+        # Plugins are not enabled either
+        # show_plugins_used = len(plugins_used) > 0 and self.config['show_plugins_used']
+        # plugin_names = tuple(self.plugin_manager.get_plugin_source_name(plugin) for plugin in plugins_used)
+        if self.config['show_usage']:
+            answer += "\n\n---\n" \
+                      f"💰 {str(response.usage.total_tokens)} {localized_text('stats_tokens', bot_language)}" \
+                      f" ({str(response.usage.prompt_tokens)} {localized_text('prompt', bot_language)}," \
+                      f" {str(response.usage.completion_tokens)} {localized_text('completion', bot_language)})"
+            # if show_plugins_used:
+            #     answer += f"\n🔌 {', '.join(plugin_names)}"
+        # elif show_plugins_used:
+        #     answer += f"\n\n---\n🔌 {', '.join(plugin_names)}"
+
+        return answer, response.usage.total_tokens
+
         # return answer, response.usage.total_tokens
 
     async def interpret_image_stream(self, chat_id, fileobj, prompt=None):
         """
         Interprets a given PNG image file using the Vision model.
         """
-        logging.warning(f'Cannot interpret image with model: {self.config["model"]}')
+        # logging.warning(f'Cannot interpret image with model: {self.config["model"]}')
+        image = encode_image_anthropic(fileobj)
+        prompt = self.config['vision_prompt'] if prompt is None else prompt
+
+        # TODO: can there be different types??
+        content = [
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": "image/png", "data": image},
+                # "image_url": {"url": image, "detail": self.config["vision_detail"]},
+            },
+            {"type": "text", "text": prompt},
+        ]
+        logging.warning('HERE!!')
+
+        response = await self.__common_get_chat_response_vision(chat_id, content, stream=True)
+        logging.warning('HERE!!')
+
+        answer = ''
+        async for chunk in response:
+            if chunk.type == 'content_block_delta':
+                delta = chunk.delta
+                if delta.text:
+                    answer += delta.text
+                    yield answer, 'not_finished'
+        answer = answer.strip()
+        logging.warning('HERE!!')
+        self.__add_to_history(chat_id, role="assistant", content=answer)
+        tokens_used = str(self.__count_tokens(self.conversations[chat_id]))
+        logging.warning('HERE!!')
+
+        #show_plugins_used = len(plugins_used) > 0 and self.config['show_plugins_used']
+        #plugin_names = tuple(self.plugin_manager.get_plugin_source_name(plugin) for plugin in plugins_used)
+        if self.config['show_usage']:
+            answer += f"\n\n---\n💰 {tokens_used} {localized_text('stats_tokens', self.config['bot_language'])}"
+        #     if show_plugins_used:
+        #         answer += f"\n🔌 {', '.join(plugin_names)}"
+        # elif show_plugins_used:
+        #     answer += f"\n\n---\n🔌 {', '.join(plugin_names)}"
+        logging.warning('HERE!!')
+
+        yield answer, tokens_used
 
     def reset_chat_history(self, chat_id, content=''):
         """
@@ -532,38 +630,41 @@ class AnthropicHelper:
         :return: the number of tokens required
         """
         # model = self.config['model']
-        model = 'gpt-3.5-turbo'
-        try:
-            encoding = tiktoken.encoding_for_model(model)
-        except KeyError:
-            encoding = tiktoken.get_encoding("gpt-3.5-turbo")
-
-        # if model in GPT_3_MODELS + GPT_3_16K_MODELS:
-        tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
-        tokens_per_name = -1  # if there's a name, the role is omitted
-        # elif model in GPT_4_MODELS + GPT_4_32K_MODELS + GPT_4_VISION_MODELS + GPT_4_128K_MODELS:
-        #     tokens_per_message = 3
-        #     tokens_per_name = 1
-        num_tokens = 0
-        for message in messages:
-            num_tokens += tokens_per_message
-            for key, value in message.items():
-                if key == 'content':
-                    if isinstance(value, str):
-                        num_tokens += len(encoding.encode(value))
-                    else:
-                        for message1 in value:
-                            if message1['type'] == 'image_url':
-                                image = decode_image(message1['image_url']['url'])
-                                num_tokens += self.__count_tokens_vision(image)
-                            else:
-                                num_tokens += len(encoding.encode(message1['text']))
-                else:
-                    num_tokens += len(encoding.encode(value))
-                    if key == "name":
-                        num_tokens += tokens_per_name
-        num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
-        return num_tokens
+        # model = 'gpt-3.5-turbo'
+        # try:
+        #     encoding = tiktoken.encoding_for_model(model)
+        # except KeyError:
+        #     encoding = tiktoken.get_encoding("gpt-3.5-turbo")
+        # logging.warning('HERE!!')
+        #
+        # # if model in GPT_3_MODELS + GPT_3_16K_MODELS:
+        # tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
+        # tokens_per_name = -1  # if there's a name, the role is omitted
+        # # elif model in GPT_4_MODELS + GPT_4_32K_MODELS + GPT_4_VISION_MODELS + GPT_4_128K_MODELS:
+        # #     tokens_per_message = 3
+        # #     tokens_per_name = 1
+        # logging.warning('HERE!!')
+        # num_tokens = 0
+        # for message in messages:
+        #     num_tokens += tokens_per_message
+        #     for key, value in message.items():
+        #         if key == 'content':
+        #             if isinstance(value, str):
+        #                 num_tokens += len(encoding.encode(value))
+        #             else:
+        #                 for message1 in value:
+        #                     if message1['type'] == 'image_url':
+        #                         image = decode_image(message1['image_url']['url'])
+        #                         num_tokens += self.__count_tokens_vision(image)
+        #                     else:
+        #                         num_tokens += len(encoding.encode(message1['text']))
+        #         else:
+        #             num_tokens += len(encoding.encode(value))
+        #             if key == "name":
+        #                 num_tokens += tokens_per_name
+        # num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
+        # return num_tokens
+        return 200
 
     # no longer needed
 
@@ -573,8 +674,9 @@ class AnthropicHelper:
         :param image_bytes: image to interpret
         :return: the number of tokens required
         """
-        logging.warning(f'Cannot count vision tokens for model: {self.config["model"]}')
-        return
+        # logging.warning(f'Cannot count vision tokens for model: {self.config["model"]}')
+        #TODO: implement
+        return 10
         
 
     # No longer works as of July 21st 2023, as OpenAI has removed the billing API
