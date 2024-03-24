@@ -5,7 +5,6 @@ import os
 
 import tiktoken
 
-# import openai
 import anthropic
 
 import requests
@@ -86,6 +85,8 @@ class AnthropicHelper:
         self.conversations: dict[int, list] = {}  # {chat_id: history}
         self.conversations_vision: dict[int, bool] = {}  # {chat_id: is_vision}
         self.last_updated: dict[int, datetime.datetime] = {}  # {chat_id: last_update_timestamp}
+        self.input_tokens: dict[int, int] = {}
+        self.output_tokens: dict[int, int] = {}
 
     def get_conversation_stats(self, chat_id: int) -> tuple[int, int]:
         """
@@ -145,11 +146,11 @@ class AnthropicHelper:
         """
         plugins_used = ()
         response = await self.__common_get_chat_response(chat_id, query, stream=True)
-        if self.config['enable_functions'] and not self.conversations_vision[chat_id]:
-            response, plugins_used = await self.__handle_function_call(chat_id, response, stream=True)
-            if is_direct_result(response):
-                yield response, '0'
-                return
+        # if self.config['enable_functions'] and not self.conversations_vision[chat_id]:
+        #     response, plugins_used = await self.__handle_function_call(chat_id, response, stream=True)
+        #     if is_direct_result(response):
+        #         yield response, '0'
+        #         return
 
         answer = ''
         async for chunk in response:
@@ -158,14 +159,24 @@ class AnthropicHelper:
                 if delta.text:
                     answer += delta.text
                     yield answer, 'not_finished'
+            elif chunk.type == 'message_start':
+                self.input_tokens[chat_id] = \
+                self.input_tokens.get(chat_id, 0) + chunk.message.usage.input_tokens
+            elif chunk.type == 'message_delta':
+                self.output_tokens[chat_id] = \
+                self.output_tokens.get(chat_id, 0) + chunk.usage.output_tokens
         answer = answer.strip()
         self.__add_to_history(chat_id, role="assistant", content=answer)
-        tokens_used = str(self.__count_tokens(self.conversations[chat_id]))
+        # tokens_used = str(self.__count_tokens(self.conversations[chat_id]))
+        # tokens_used = str(self.input_tokens.get(chat_id, 0) + self.output_tokens.get(chat_id, 0))
+        input_tokens = str(self.input_tokens.get(chat_id, 0))
+        output_tokens = str(self.output_tokens.get(chat_id, 0))
+        tokens_used = input_tokens + output_tokens
 
         show_plugins_used = len(plugins_used) > 0 and self.config['show_plugins_used']
         plugin_names = tuple(self.plugin_manager.get_plugin_source_name(plugin) for plugin in plugins_used)
         if self.config['show_usage']:
-            answer += f"\n\n---\n💰 {tokens_used} {localized_text('stats_tokens', self.config['bot_language'])}"
+            answer += f"\n\n---\n💰 {input_tokens}in/{output_tokens}out {localized_text('stats_tokens', self.config['bot_language'])}"
             if show_plugins_used:
                 answer += f"\n🔌 {', '.join(plugin_names)}"
         elif show_plugins_used:
@@ -198,7 +209,8 @@ class AnthropicHelper:
             self.__add_to_history(chat_id, role="user", content=query)
 
             # Summarize the chat history if it's too long to avoid excessive token usage
-            token_count = self.__count_tokens(self.conversations[chat_id])
+            # token_count = openai_helper.__count_tokens(self.conversations[chat_id])
+            token_count = self.input_tokens.get(chat_id, 0) + self.output_tokens.get(chat_id, 0)
             exceeded_max_tokens = token_count + self.config['max_tokens'] > self.__max_model_tokens()
             exceeded_max_history_size = len(self.conversations[chat_id]) > self.config['max_history_size']
 
@@ -243,56 +255,56 @@ class AnthropicHelper:
         except Exception as e:
             raise Exception(f"⚠️ _{localized_text('error', bot_language)}._ ⚠️\n{str(e)}") from e
 
-    async def __handle_function_call(self, chat_id, response, stream=False, times=0, plugins_used=()):
-        function_name = ''
-        arguments = ''
-        if stream:
-            async for item in response:
-                if len(item.choices) > 0:
-                    first_choice = item.choices[0]
-                    if first_choice.delta and first_choice.delta.function_call:
-                        if first_choice.delta.function_call.name:
-                            function_name += first_choice.delta.function_call.name
-                        if first_choice.delta.function_call.arguments:
-                            arguments += first_choice.delta.function_call.arguments
-                    elif first_choice.finish_reason and first_choice.finish_reason == 'function_call':
-                        break
-                    else:
-                        return response, plugins_used
-                else:
-                    return response, plugins_used
-        else:
-            if len(response.choices) > 0:
-                first_choice = response.choices[0]
-                if first_choice.message.function_call:
-                    if first_choice.message.function_call.name:
-                        function_name += first_choice.message.function_call.name
-                    if first_choice.message.function_call.arguments:
-                        arguments += first_choice.message.function_call.arguments
-                else:
-                    return response, plugins_used
-            else:
-                return response, plugins_used
-
-        logging.info(f'Calling function {function_name} with arguments {arguments}')
-        function_response = await self.plugin_manager.call_function(function_name, self, arguments)
-
-        if function_name not in plugins_used:
-            plugins_used += (function_name,)
-
-        if is_direct_result(function_response):
-            self.__add_function_call_to_history(chat_id=chat_id, function_name=function_name,
-                                                content=json.dumps({'result': 'Done, the content has been sent'
-                                                                              'to the user.'}))
-            return function_response, plugins_used
-
-        self.__add_function_call_to_history(chat_id=chat_id, function_name=function_name, content=function_response)
-        response = await self.client.messages.create(
-            model=self.config['model'],
-            messages=self.conversations[chat_id],
-            stream=stream
-        )
-        return await self.__handle_function_call(chat_id, response, stream, times + 1, plugins_used)
+    # async def __handle_function_call(self, chat_id, response, stream=False, times=0, plugins_used=()):
+    #     function_name = ''
+    #     arguments = ''
+    #     if stream:
+    #         async for item in response:
+    #             if len(item.choices) > 0:
+    #                 first_choice = item.choices[0]
+    #                 if first_choice.delta and first_choice.delta.function_call:
+    #                     if first_choice.delta.function_call.name:
+    #                         function_name += first_choice.delta.function_call.name
+    #                     if first_choice.delta.function_call.arguments:
+    #                         arguments += first_choice.delta.function_call.arguments
+    #                 elif first_choice.finish_reason and first_choice.finish_reason == 'function_call':
+    #                     break
+    #                 else:
+    #                     return response, plugins_used
+    #             else:
+    #                 return response, plugins_used
+    #     else:
+    #         if len(response.choices) > 0:
+    #             first_choice = response.choices[0]
+    #             if first_choice.message.function_call:
+    #                 if first_choice.message.function_call.name:
+    #                     function_name += first_choice.message.function_call.name
+    #                 if first_choice.message.function_call.arguments:
+    #                     arguments += first_choice.message.function_call.arguments
+    #             else:
+    #                 return response, plugins_used
+    #         else:
+    #             return response, plugins_used
+    #
+    #     logging.info(f'Calling function {function_name} with arguments {arguments}')
+    #     function_response = await self.plugin_manager.call_function(function_name, self, arguments)
+    #
+    #     if function_name not in plugins_used:
+    #         plugins_used += (function_name,)
+    #
+    #     if is_direct_result(function_response):
+    #         self.__add_function_call_to_history(chat_id=chat_id, function_name=function_name,
+    #                                             content=json.dumps({'result': 'Done, the content has been sent'
+    #                                                                           'to the user.'}))
+    #         return function_response, plugins_used
+    #
+    #     self.__add_function_call_to_history(chat_id=chat_id, function_name=function_name, content=function_response)
+    #     response = await self.client.messages.create(
+    #         model=self.config['model'],
+    #         messages=self.conversations[chat_id],
+    #         stream=stream
+    #     )
+    #     return await self.__handle_function_call(chat_id, response, stream, times + 1, plugins_used)
 
     async def generate_image(self, prompt: str) -> tuple[str, str]:
         """
@@ -390,6 +402,7 @@ class AnthropicHelper:
                 # logging.warning('HERE!!')
             else:
                 # logging.warning('HERE!!')
+                query = ''
                 for message in content:
                     if message['type'] == 'text':
                         query = message['text']
@@ -398,12 +411,10 @@ class AnthropicHelper:
                 # logging.warning('HERE!!')
 
             # Summarize the chat history if it's too long to avoid excessive token usage
-            token_count = self.__count_tokens(self.conversations[chat_id])
-            # logging.warning('HERE!!')
+            # token_count = self.__count_tokens(self.conversations[chat_id])
+            token_count = self.input_tokens.get(chat_id, 0) + self.output_tokens.get(chat_id, 0)
             exceeded_max_tokens = token_count + self.config['max_tokens'] > self.__max_model_tokens()
-            # logging.warning('HERE!!')
             exceeded_max_history_size = len(self.conversations[chat_id]) > self.config['max_history_size']
-            # logging.warning('HERE!!')
 
             if exceeded_max_tokens or exceeded_max_history_size:
                 logging.info(f'Chat history for chat ID {chat_id} is too long. Summarising...')
@@ -425,23 +436,10 @@ class AnthropicHelper:
                 'model': self.config['vision_model'],
                 'messages': self.conversations[chat_id][:-1] + [message],
                 'temperature': self.config['temperature'],
-                # 'n': 1, # several choices is not implemented yet
                 'max_tokens': self.config['vision_max_tokens'],
-                # 'presence_penalty': self.config['presence_penalty'],
-                # 'frequency_penalty': self.config['frequency_penalty'],
                 'stream': stream
             }
             # logging.info(f"sending a request with common_args {common_args}")
-
-
-            # vision model does not yet support functions
-
-            # if self.config['enable_functions']:
-            #     functions = self.plugin_manager.get_functions_specs()
-            #     if len(functions) > 0:
-            #         common_args['functions'] = self.plugin_manager.get_functions_specs()
-            #         common_args['function_call'] = 'auto'
-            # logging.warning('HERE!!')
 
             return await self.client.messages.create(**common_args)
 
@@ -542,16 +540,25 @@ class AnthropicHelper:
                 if delta.text:
                     answer += delta.text
                     yield answer, 'not_finished'
+            elif chunk.type == 'message_start':
+                self.input_tokens[chat_id] = \
+                self.input_tokens.get(chat_id, 0) + chunk.message.usage.input_tokens
+            elif chunk.type == 'message_delta':
+                self.output_tokens[chat_id] = \
+                self.output_tokens.get(chat_id, 0) + chunk.usage.output_tokens
         answer = answer.strip()
         # logging.warning('HERE!!')
         self.__add_to_history(chat_id, role="assistant", content=answer)
-        tokens_used = str(self.__count_tokens(self.conversations[chat_id]))
+        # tokens_used = str(self.__count_tokens(self.conversations[chat_id]))
+        input_tokens = str(self.input_tokens.get(chat_id, 0))
+        output_tokens = str(self.output_tokens.get(chat_id, 0))
+        tokens_used = input_tokens + output_tokens
         # logging.warning('HERE!!')
 
         #show_plugins_used = len(plugins_used) > 0 and self.config['show_plugins_used']
         #plugin_names = tuple(self.plugin_manager.get_plugin_source_name(plugin) for plugin in plugins_used)
         if self.config['show_usage']:
-            answer += f"\n\n---\n💰 {tokens_used} {localized_text('stats_tokens', self.config['bot_language'])}"
+            answer += f"\n\n---\n💰 {input_tokens}in/{output_tokens}out {localized_text('stats_tokens', self.config['bot_language'])}"
         #     if show_plugins_used:
         #         answer += f"\n🔌 {', '.join(plugin_names)}"
         # elif show_plugins_used:
@@ -610,7 +617,6 @@ class AnthropicHelper:
         response = await self.client.messages.create(
             model=self.config['model'],
             messages=messages,
-            temperature=0.4
         )
         return response.content
 
@@ -621,12 +627,12 @@ class AnthropicHelper:
         # )
 
     # https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
-    def __count_tokens(self, messages) -> int:
-        """
-        Counts the number of tokens required to send the given messages.
-        :param messages: the messages to send
-        :return: the number of tokens required
-        """
+    # def __count_tokens(self, messages) -> int:
+    #     """
+    #     Counts the number of tokens required to send the given messages.
+    #     :param messages: the messages to send
+    #     :return: the number of tokens required
+    #     """
         # model = self.config['model']
         # model = 'gpt-3.5-turbo'
         # try:
@@ -662,7 +668,7 @@ class AnthropicHelper:
         #                 num_tokens += tokens_per_name
         # num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
         # return num_tokens
-        return 200
+        # return 200
 
     # no longer needed
 
