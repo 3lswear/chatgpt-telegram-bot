@@ -380,30 +380,30 @@ class AnthropicHelper:
         try:
             if chat_id not in self.conversations or self.__max_age_reached(chat_id):
                 self.reset_chat_history(chat_id)
-            logging.warning('HERE!!')
+            # logging.warning('HERE!!')
 
             self.last_updated[chat_id] = datetime.datetime.now()
 
             if self.config['enable_vision_follow_up_questions']:
                 self.conversations_vision[chat_id] = True
                 self.__add_to_history(chat_id, role="user", content=content)
-                logging.warning('HERE!!')
+                # logging.warning('HERE!!')
             else:
-                logging.warning('HERE!!')
+                # logging.warning('HERE!!')
                 for message in content:
                     if message['type'] == 'text':
                         query = message['text']
                         break
                 self.__add_to_history(chat_id, role="user", content=query)
-                logging.warning('HERE!!')
+                # logging.warning('HERE!!')
 
             # Summarize the chat history if it's too long to avoid excessive token usage
             token_count = self.__count_tokens(self.conversations[chat_id])
-            logging.warning('HERE!!')
+            # logging.warning('HERE!!')
             exceeded_max_tokens = token_count + self.config['max_tokens'] > self.__max_model_tokens()
-            logging.warning('HERE!!')
+            # logging.warning('HERE!!')
             exceeded_max_history_size = len(self.conversations[chat_id]) > self.config['max_history_size']
-            logging.warning('HERE!!')
+            # logging.warning('HERE!!')
 
             if exceeded_max_tokens or exceeded_max_history_size:
                 logging.info(f'Chat history for chat ID {chat_id} is too long. Summarising...')
@@ -441,7 +441,7 @@ class AnthropicHelper:
             #     if len(functions) > 0:
             #         common_args['functions'] = self.plugin_manager.get_functions_specs()
             #         common_args['function_call'] = 'auto'
-            logging.warning('HERE!!')
+            # logging.warning('HERE!!')
 
             return await self.client.messages.create(**common_args)
 
@@ -513,8 +513,6 @@ class AnthropicHelper:
 
         return answer, response.usage.total_tokens
 
-        # return answer, response.usage.total_tokens
-
     async def interpret_image_stream(self, chat_id, fileobj, prompt=None):
         """
         Interprets a given PNG image file using the Vision model.
@@ -532,10 +530,10 @@ class AnthropicHelper:
             },
             {"type": "text", "text": prompt},
         ]
-        logging.warning('HERE!!')
+        # logging.warning('HERE!!')
 
         response = await self.__common_get_chat_response_vision(chat_id, content, stream=True)
-        logging.warning('HERE!!')
+        # logging.warning('HERE!!')
 
         answer = ''
         async for chunk in response:
@@ -545,10 +543,10 @@ class AnthropicHelper:
                     answer += delta.text
                     yield answer, 'not_finished'
         answer = answer.strip()
-        logging.warning('HERE!!')
+        # logging.warning('HERE!!')
         self.__add_to_history(chat_id, role="assistant", content=answer)
         tokens_used = str(self.__count_tokens(self.conversations[chat_id]))
-        logging.warning('HERE!!')
+        # logging.warning('HERE!!')
 
         #show_plugins_used = len(plugins_used) > 0 and self.config['show_plugins_used']
         #plugin_names = tuple(self.plugin_manager.get_plugin_source_name(plugin) for plugin in plugins_used)
@@ -558,7 +556,7 @@ class AnthropicHelper:
         #         answer += f"\n🔌 {', '.join(plugin_names)}"
         # elif show_plugins_used:
         #     answer += f"\n\n---\n🔌 {', '.join(plugin_names)}"
-        logging.warning('HERE!!')
+        # logging.warning('HERE!!')
 
         yield answer, tokens_used
 
