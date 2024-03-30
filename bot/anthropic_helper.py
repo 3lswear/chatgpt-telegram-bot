@@ -22,7 +22,7 @@ from plugin_manager import PluginManager
 
 # Models can be found here: https://platform.openai.com/docs/models/overview
 # Models gpt-3.5-turbo-0613 and  gpt-3.5-turbo-16k-0613 will be deprecated on June 13, 2024
-ANTHROPIC_MODELS = ('claude-3-haiku-20240307')
+ANTHROPIC_MODELS = ('claude-3-haiku-20240307', 'claude-3-sonnet-20240229', 'claude-3-opus-20240229')
 
 
 def default_max_tokens(model: str) -> int:
