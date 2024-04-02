@@ -30,25 +30,25 @@ def main():
         exit(1)
 
     # Setup configurations
-    model_family = os.environ.get('MODEL_FAMILY', 'openai')
-    if model_family == 'openai':
+    model_provider = os.environ.get('MODEL_PROVIDER', 'openai')
+    if model_provider == 'openai':
         model = os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo')
         functions_available = openai_helper.are_functions_available(model=model)
         max_tokens_default = openai_helper.default_max_tokens(model=model)
         vision_model = os.environ.get('VISION_MODEL', 'gpt-4-vision-preview')
-    elif model_family == 'anthropic':
+    elif model_provider == 'anthropic':
         model = os.environ.get('ANTHROPIC_MODEL', 'claude-3-haiku-20240307')
         functions_available = anthropic_helper.are_functions_available(model=model)
         max_tokens_default = anthropic_helper.default_max_tokens(model=model)
         vision_model = os.environ.get('VISION_MODEL', model)
     else:
-        required_values = ['MODEL_FAMILY']
+        required_values = ['MODEL_PROVIDER']
         missing_values = [value for value in required_values if os.environ.get(value) is None]
         logging.error(f'The following environment values are missing in your .env: {", ".join(missing_values)}')
         exit(1)
 
     openai_config = {
-        'model_family': model_family,
+        'model_provider': model_provider,
         'api_key': os.environ['OPENAI_API_KEY'],
         'anthropic_api_key': os.environ['ANTHROPIC_API_KEY'],
         'show_usage': os.environ.get('SHOW_USAGE', 'false').lower() == 'true',
@@ -129,7 +129,7 @@ def main():
     # Setup and run ChatGPT and Telegram bot
     plugin_manager = PluginManager(config=plugin_config)
     # openai_helper = OpenAIHelper(config=openai_config, plugin_manager=plugin_manager)
-    helper = AnthropicHelper(config=openai_config, plugin_manager=plugin_manager) if model_family == 'anthropic' else OpenAIHelper(config=openai_config, plugin_manager=plugin_manager)
+    helper = AnthropicHelper(config=openai_config, plugin_manager=plugin_manager) if model_provider == 'anthropic' else OpenAIHelper(config=openai_config, plugin_manager=plugin_manager)
     telegram_bot = ChatGPTTelegramBot(config=telegram_config, openai=helper)
     telegram_bot.run()
 
